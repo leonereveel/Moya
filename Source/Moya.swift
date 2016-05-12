@@ -320,6 +320,8 @@ internal extension MoyaProvider {
         let plugins = self.plugins
         
         let multipartFormData = { (form:RequestMultipartFormData) -> Void in
+            let params = decodeHTTPBody(request.HTTPBody)
+            
             for bodyPart in multipartBody {
                 switch bodyPart.provider {
                 case .Data(let data):
@@ -331,11 +333,9 @@ internal extension MoyaProvider {
                 }
             }
             
-            // Add target parameters into form body
-            guard let parameters = target.parameters else { return }
-            for (key, value) in parameters {
-                // I don't know an easy way to transform any value to NSData ¯\_(ツ)_/¯
-                form.appendBodyPart(data: "\(value)".dataUsingEncoding(NSUTF8StringEncoding)!, name: key)
+            // Add old url request body to new one
+            for (key, value) in params {
+                form.appendBodyPart(data: value.dataUsingEncoding(NSUTF8StringEncoding)!, name: key)
             }
         }
         
@@ -443,8 +443,21 @@ internal struct CancellableWrapper: Cancellable {
     }
 }
 
-func encode<T>(inout value: T) -> NSData {
-    return withUnsafePointer(&value) { p in
-        NSData(bytes: p, length: sizeofValue(value))
+internal func decodeHTTPBody(nsData:NSData?) -> [String:String] {
+    guard let data = nsData, let urlParams = String(data: data, encoding: NSUTF8StringEncoding)
+        else { return [:] }
+    
+    var params = [String:String]()
+    for entry in urlParams.componentsSeparatedByString("&") {
+        if entry.containsString("=") {
+            let comp = entry.componentsSeparatedByString("=")
+            if let key = comp.first, let value = comp.last {
+                params[key] = value
+            }
+        } else {
+            params[entry] = ""
+        }
     }
+    
+    return params
 }
