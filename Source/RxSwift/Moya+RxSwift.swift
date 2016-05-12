@@ -38,7 +38,7 @@ public class RxMoyaProvider<Target where Target: TargetType>: MoyaProvider<Targe
 }
 
 public extension RxMoyaProvider where Target:MultipartTargetType {
-    public func request(token: Target) -> Observable<ProgressResponse> {
+    public func requestWithProgress(token: Target) -> Observable<ProgressResponse> {
         let progressBlock = { (observer:AnyObserver) -> (ProgressResponse) -> Void in
             return { (progress:ProgressResponse) in
                 observer.onNext(progress)
