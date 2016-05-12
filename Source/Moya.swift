@@ -4,9 +4,9 @@ import Result
 /// Closure to be executed when a request has completed.
 public typealias Completion = (result: Result<Moya.Response, Moya.Error>) -> ()
 
-public typealias ProgressBlock = (progress:Progress) -> Void
+public typealias ProgressBlock = (progress:ProgressResponse) -> Void
 
-public struct Progress {
+public struct ProgressResponse {
     var totalBytes:Int64
     var bytesExpected:Int64
     var response:Response?
@@ -348,7 +348,7 @@ internal extension MoyaProvider {
                 // Perform the actual request
                 alamoRequest
                     .progress { (bytesWritten, totalBytesWritten, totalBytesExpected) in
-                        progress?(progress:Progress(totalBytes: totalBytesWritten, bytesExpected: totalBytesExpected))
+                        progress?(progress:ProgressResponse(totalBytes: totalBytesWritten, bytesExpected: totalBytesExpected))
                     }
                     .response { (_, response: NSHTTPURLResponse?, data: NSData?, error: NSError?) -> () in
                         let result = convertResponseToResult(response, data: data, error: error)

@@ -38,18 +38,18 @@ public class RxMoyaProvider<Target where Target: TargetType>: MoyaProvider<Targe
 }
 
 public extension RxMoyaProvider where Target:MultipartTargetType {
-    public func request(token: Target) -> Observable<Progress> {
-        let progressBlock = { (observer:AnyObserver) -> (Progress) -> Void in
-            return { (progress:Progress) in
+    public func request(token: Target) -> Observable<ProgressResponse> {
+        let progressBlock = { (observer:AnyObserver) -> (ProgressResponse) -> Void in
+            return { (progress:ProgressResponse) in
                 observer.onNext(progress)
             }
         }
         
-        let response:Observable<Progress> = Observable.create { [weak self] observer in
+        let response:Observable<ProgressResponse> = Observable.create { [weak self] observer in
             let cancellableToken = self?.request(token, progress:progressBlock(observer)){ result in
                 switch result {
                 case let .Success(response):
-                    observer.onNext(Progress(response:response))
+                    observer.onNext(ProgressResponse(response:response))
                     observer.onCompleted()
                     break
                 case let .Failure(error):
@@ -60,13 +60,14 @@ public extension RxMoyaProvider where Target:MultipartTargetType {
             return AnonymousDisposable {
                 cancellableToken?.cancel()
             }
-        }.scan(Progress()) { (acc, curr) -> Progress in
-            let totalBytes = curr.totalBytes > 0 ? curr.totalBytes : acc.totalBytes
-            let bytesExpected = curr.bytesExpected > 0 ? curr.bytesExpected : acc.bytesExpected
-            let response = curr.response ?? acc.response
-            return Progress(totalBytes: totalBytes, bytesExpected: bytesExpected, response: response)
         }
         
-        return (progress:progressSubject, response: response)
+        // Accumulate all progress and combine them when the result comes
+        return response.scan(ProgressResponse()) { (last, progress) in
+            let totalBytes = progress.totalBytes > 0 ? progress.totalBytes : last.totalBytes
+            let bytesExpected = progress.bytesExpected > 0 ? progress.bytesExpected : last.bytesExpected
+            let response = progress.response ?? last.response
+            return ProgressResponse(totalBytes: totalBytes, bytesExpected: bytesExpected, response: response)
+        }
     }
 }
