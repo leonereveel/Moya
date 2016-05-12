@@ -38,33 +38,33 @@ public class RxMoyaProvider<Target where Target: TargetType>: MoyaProvider<Targe
 }
 
 public extension RxMoyaProvider where Target:MultipartTargetType {
-    public func request(token: Target) -> (progress:Observable<Progress>, response:Observable<Response>) {
-        // Progress should never rise and error
-        let progressSubject = PublishSubject<Progress>()
-        let progressBlock = {(progress:Progress) -> Void in
-            progressSubject.onNext(progress)
-            if progress.completed {
-                progressSubject.onCompleted()
+    public func request(token: Target) -> Observable<Progress> {
+        let progressBlock = { (observer:AnyObserver) -> (Progress) -> Void in
+            return { (progress:Progress) in
+                observer.onNext(progress)
             }
         }
         
-        let response:Observable<Response> = Observable.create { [weak self] observer in
-            let cancellableToken = self?.request(token, progress:progressBlock){ result in
+        let response:Observable<Progress> = Observable.create { [weak self] observer in
+            let cancellableToken = self?.request(token, progress:progressBlock(observer)){ result in
                 switch result {
                 case let .Success(response):
-                    observer.onNext(response)
+                    observer.onNext(Progress(response:response))
                     observer.onCompleted()
-                    progressSubject.onCompleted()
                     break
                 case let .Failure(error):
                     observer.onError(error)
-                    progressSubject.onCompleted()
                 }
             }
             
             return AnonymousDisposable {
                 cancellableToken?.cancel()
             }
+        }.scan(Progress()) { (acc, curr) -> Progress in
+            let totalBytes = curr.totalBytes > 0 ? curr.totalBytes : acc.totalBytes
+            let bytesExpected = curr.bytesExpected > 0 ? curr.bytesExpected : acc.bytesExpected
+            let response = curr.response ?? acc.response
+            return Progress(totalBytes: totalBytes, bytesExpected: bytesExpected, response: response)
         }
         
         return (progress:progressSubject, response: response)

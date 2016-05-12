@@ -9,13 +9,20 @@ public typealias ProgressBlock = (progress:Progress) -> Void
 public struct Progress {
     var totalBytes:Int64
     var bytesExpected:Int64
+    var response:Response?
+    
+    init(totalBytes:Int64 = -1, bytesExpected:Int64 = -1, response:Response? = nil) {
+        self.totalBytes = totalBytes
+        self.bytesExpected = bytesExpected
+        self.response = response
+    }
     
     var progress:Double {
-        return bytesExpected > 0 ? Double(totalBytes) / Double(bytesExpected) : 1.0
+        return (bytesExpected > 0 && totalBytes > 0) ? Double(totalBytes) / Double(bytesExpected) : 0.0
     }
     
     var completed:Bool {
-        return totalBytes >= bytesExpected
+        return totalBytes >= bytesExpected && response != nil
     }
 }
 
@@ -354,7 +361,7 @@ internal extension MoyaProvider {
                 
                 cancellable.innerCancellable = CancellableToken(request: alamoRequest)
             case .Failure(let error):
-                completion(result: .Failure(Moya.Error.Underlying(error)))
+                completion(result: .Failure(Moya.Error.Underlying(error as NSError)))
             }
         }
         
