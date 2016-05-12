@@ -7,21 +7,21 @@ public typealias Completion = (result: Result<Moya.Response, Moya.Error>) -> ()
 public typealias ProgressBlock = (progress:ProgressResponse) -> Void
 
 public struct ProgressResponse {
-    var totalBytes:Int64
-    var bytesExpected:Int64
-    var response:Response?
+    public let totalBytes:Int64
+    public let bytesExpected:Int64
+    public let response:Response?
     
-    init(totalBytes:Int64 = -1, bytesExpected:Int64 = -1, response:Response? = nil) {
+    init(totalBytes:Int64 = 0, bytesExpected:Int64 = 0, response:Response? = nil) {
         self.totalBytes = totalBytes
         self.bytesExpected = bytesExpected
         self.response = response
     }
     
-    var progress:Double {
-        return (bytesExpected > 0 && totalBytes > 0) ? Double(totalBytes) / Double(bytesExpected) : 0.0
+    public var progress:Double {
+        return bytesExpected > 0 ? min(Double(totalBytes) / Double(bytesExpected), 1.0) : 1.0
     }
     
-    var completed:Bool {
+    public var completed:Bool {
         return totalBytes >= bytesExpected && response != nil
     }
 }
