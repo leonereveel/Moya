@@ -67,7 +67,7 @@ public class ReactiveCocoaMoyaProvider<Target where Target: TargetType>: MoyaPro
     }
 }
 
-public extension ReactiveCocoaMoyaProvider where Target: MultipartTargetType {
+public extension ReactiveCocoaMoyaProvider {
     public func requestWithProgress(token: Target) -> SignalProducer<ProgressResponse, Error> {
         let progressBlock = { (observer: Signal<ProgressResponse, Error>.Observer) -> (ProgressResponse) -> Void in
             return { (progress:ProgressResponse) in

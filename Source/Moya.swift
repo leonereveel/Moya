@@ -57,10 +57,6 @@ public struct MultipartFormData {
     public let mimeType:String
 }
 
-public protocol MultipartTargetType: TargetType {
-    var multipartBody: [MultipartFormData] { get }
-}
-
 /// Protocol to define the base URL, path, method, parameters and sample data for a target.
 public protocol TargetType {
     var baseURL: NSURL { get }
@@ -68,6 +64,17 @@ public protocol TargetType {
     var method: Moya.Method { get }
     var parameters: [String: AnyObject]? { get }
     var sampleData: NSData { get }
+    var multipartBody: [MultipartFormData]? { get }
+}
+
+extension TargetType {
+    public var multipartBody: [MultipartFormData]? {
+        return nil
+    }
+    
+    private var isMultipartUpload: Bool {
+        return method == .POST && (multipartBody?.count ?? 0) > 0
+    }
 }
 
 public enum StructTarget: TargetType {
@@ -156,7 +163,15 @@ public class MoyaProvider<Target: TargetType> {
     }
     
     /// Designated request-making method. Returns a Cancellable token to cancel the request later.
-    public func request(target: Target, completion: Moya.Completion) -> Cancellable {
+    public func request(target: Target, progress: Moya.ProgressBlock? = nil, completion: Moya.Completion) -> Cancellable {
+        if target.isMultipartUpload {
+            return requestMultipart(target, progress: progress, completion: completion)
+        }
+        
+        return requestNormal(target, completion: completion)
+    }
+    
+    internal func requestNormal(target: Target, completion: Moya.Completion) -> Cancellable {
         let endpoint = self.endpoint(target)
         let stubBehavior = self.stubClosure(target)
         var cancellableToken = CancellableWrapper()
@@ -239,10 +254,13 @@ public class MoyaProvider<Target: TargetType> {
     }
 }
 
-public extension MoyaProvider where Target:MultipartTargetType {
+extension MoyaProvider {
     /// Designated request-making method. Returns a Cancellable token to cancel the request later.
-    public func request(target: Target, progress: Moya.ProgressBlock? = nil, completion: Moya.Completion) -> Cancellable {
-        let multipart = target as MultipartTargetType
+    internal func requestMultipart(target: Target, progress: Moya.ProgressBlock? = nil, completion: Moya.Completion) -> Cancellable {
+        guard let multipartBody = target.multipartBody where multipartBody.count > 0 else {
+            fatalError("\(target) is not a multipart upload target.")
+        }
+        
         let endpoint = self.endpoint(target)
         let stubBehavior = self.stubClosure(target)
         var cancellableToken = CancellableWrapper()
@@ -252,11 +270,7 @@ public extension MoyaProvider where Target:MultipartTargetType {
             
             switch stubBehavior {
             case .Never:
-                if multipart.multipartBody.count == 0 {
-                    cancellableToken.innerCancellable = self.sendRequest(target, request: request, completion: completion)
-                } else {
-                    cancellableToken = self.sendUpload(target, request:request, multipartBody:multipart.multipartBody, progress:progress, completion:completion)
-                }
+                cancellableToken = self.sendUpload(target, request: request, multipartBody: multipartBody, progress:progress, completion: completion)
             default:
                 cancellableToken.innerCancellable = self.stubRequest(target, request: request, completion: completion, endpoint: endpoint, stubBehavior: stubBehavior)
             }
