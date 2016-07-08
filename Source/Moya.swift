@@ -255,7 +255,7 @@ public class MoyaProvider<Target: TargetType> {
         var cancellableToken = CancellableWrapper()
         
         let performNetworking = { (requestResult: Result<NSURLRequest, Moya.Error>) in
-            if cancellableToken.isCancelled { return }
+            if cancellableToken.canceled { return }
             
             var request: NSURLRequest!
             
@@ -269,7 +269,7 @@ public class MoyaProvider<Target: TargetType> {
             
             switch stubBehavior {
             case .Never:
-                cancellableToken = self.sendUpload(target, request: request, queue: queue, multipartBody: multipartBody, progress: progress, completion: { result in
+                cancellableToken.innerCancellable = self.sendUpload(target, request: request, queue: queue, multipartBody: multipartBody, progress: progress, completion: { result in
                     if self.trackInflights {
                         self.inflightRequests[endpoint]?.forEach({ $0(result: result) })
                         
@@ -428,7 +428,7 @@ internal extension MoyaProvider {
                         completion(result: result)
                 }
                 
-                if cancellable.isCancelled { return }
+                if cancellable.canceled { return }
                 
                 alamoRequest.resume()
                 
