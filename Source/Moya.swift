@@ -116,6 +116,7 @@ public enum StructTarget: TargetType {
 
 /// Protocol to define the opaque type returned from a request
 public protocol Cancellable {
+    var cancelled: Bool { get }
     func cancel()
 }
 
@@ -199,7 +200,7 @@ public class MoyaProvider<Target: TargetType> {
         }
 
         let performNetworking = { (requestResult: Result<NSURLRequest, Moya.Error>) in
-            if cancellableToken.isCancelled { return }
+            if cancellableToken.cancelled { return }
 
             var request: NSURLRequest!
 
@@ -254,7 +255,7 @@ public class MoyaProvider<Target: TargetType> {
         var cancellableToken = CancellableWrapper()
         
         let performNetworking = { (requestResult: Result<NSURLRequest, Moya.Error>) in
-            if cancellableToken.isCancelled { return }
+            if cancellableToken.cancelled { return }
             
             var request: NSURLRequest!
             
@@ -268,7 +269,7 @@ public class MoyaProvider<Target: TargetType> {
             
             switch stubBehavior {
             case .Never:
-                cancellableToken = self.sendUpload(target, request: request, queue: queue, multipartBody: multipartBody, progress: progress, completion: { result in
+                cancellableToken.innerCancellable = self.sendUpload(target, request: request, queue: queue, multipartBody: multipartBody, progress: progress, completion: { result in
                     if self.trackInflights {
                         self.inflightRequests[endpoint]?.forEach({ $0(result: result) })
                         
@@ -375,7 +376,7 @@ public extension MoyaProvider {
 
 internal extension MoyaProvider {
     
-    private func sendUpload(target: Target, request: NSURLRequest, queue: dispatch_queue_t?, multipartBody:[MultipartFormData], progress: Moya.ProgressBlock? = nil, completion: Moya.Completion) -> CancellableWrapper {
+    private func sendUpload(target: Target, request: NSURLRequest, queue: dispatch_queue_t?, multipartBody: [MultipartFormData], progress: Moya.ProgressBlock? = nil, completion: Moya.Completion) -> Cancellable {
         var cancellable = CancellableWrapper()
         let plugins = self.plugins
         
@@ -400,7 +401,7 @@ internal extension MoyaProvider {
             }
         }
         
-        manager.upload(request, multipartFormData: multipartFormData) {(result: MultipartFormDataEncodingResult) in
+        manager.upload(request, multipartFormData: multipartFormData) { (result: MultipartFormDataEncodingResult) in
             switch result {
             case .Success(let alamoRequest, _, _):
                 // Give plugins the chance to alter the outgoing request
@@ -427,7 +428,7 @@ internal extension MoyaProvider {
                         completion(result: result)
                 }
                 
-                if cancellable.isCancelled { return }
+                if cancellable.cancelled { return }
                 
                 alamoRequest.resume()
                 
@@ -440,7 +441,6 @@ internal extension MoyaProvider {
         return cancellable
     }
 
-    
     func sendRequest(target: Target, request: NSURLRequest, queue: dispatch_queue_t?, completion: Moya.Completion) -> CancellableToken {
         let alamoRequest = manager.request(request)
         let plugins = self.plugins
@@ -464,7 +464,7 @@ internal extension MoyaProvider {
     /// Creates a function which, when called, executes the appropriate stubbing behavior for the given parameters.
     internal final func createStubFunction(token: CancellableToken, forTarget target: Target, withCompletion completion: Moya.Completion, endpoint: Endpoint<Target>, plugins: [PluginType]) -> (() -> ()) {
         return {
-            if token.canceled {
+            if token.cancelled {
                 let error = Moya.Error.Underlying(NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled, userInfo: nil))
                 plugins.forEach { $0.didReceiveResponse(.Failure(error), target: target) }
                 completion(result: .Failure(error))
@@ -506,12 +506,19 @@ public func convertResponseToResult(response: NSHTTPURLResponse?, data: NSData?,
     }
 }
 
-internal struct CancellableWrapper: Cancellable {
-    internal var innerCancellable: CancellableToken? = nil
+internal class CancellableWrapper: Cancellable {
+    internal var innerCancellable: Cancellable = SimpleCancellable()
 
-    private var isCancelled = false
+    var cancelled: Bool { return innerCancellable.cancelled ?? false }
 
     internal func cancel() {
-        innerCancellable?.cancel()
+        innerCancellable.cancel()
+    }
+}
+
+internal class SimpleCancellable: Cancellable {
+    var cancelled = false
+    func cancel() {
+        cancelled = true
     }
 }
