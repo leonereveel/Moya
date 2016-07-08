@@ -116,7 +116,7 @@ public enum StructTarget: TargetType {
 
 /// Protocol to define the opaque type returned from a request
 public protocol Cancellable {
-    var canceled: Bool { get }
+    var cancelled: Bool { get }
     func cancel()
 }
 
@@ -200,7 +200,7 @@ public class MoyaProvider<Target: TargetType> {
         }
 
         let performNetworking = { (requestResult: Result<NSURLRequest, Moya.Error>) in
-            if cancellableToken.canceled { return }
+            if cancellableToken.cancelled { return }
 
             var request: NSURLRequest!
 
@@ -255,7 +255,7 @@ public class MoyaProvider<Target: TargetType> {
         var cancellableToken = CancellableWrapper()
         
         let performNetworking = { (requestResult: Result<NSURLRequest, Moya.Error>) in
-            if cancellableToken.canceled { return }
+            if cancellableToken.cancelled { return }
             
             var request: NSURLRequest!
             
@@ -428,7 +428,7 @@ internal extension MoyaProvider {
                         completion(result: result)
                 }
                 
-                if cancellable.canceled { return }
+                if cancellable.cancelled { return }
                 
                 alamoRequest.resume()
                 
@@ -464,7 +464,7 @@ internal extension MoyaProvider {
     /// Creates a function which, when called, executes the appropriate stubbing behavior for the given parameters.
     internal final func createStubFunction(token: CancellableToken, forTarget target: Target, withCompletion completion: Moya.Completion, endpoint: Endpoint<Target>, plugins: [PluginType]) -> (() -> ()) {
         return {
-            if token.canceled {
+            if token.cancelled {
                 let error = Moya.Error.Underlying(NSError(domain: NSURLErrorDomain, code: NSURLErrorCancelled, userInfo: nil))
                 plugins.forEach { $0.didReceiveResponse(.Failure(error), target: target) }
                 completion(result: .Failure(error))
@@ -509,7 +509,7 @@ public func convertResponseToResult(response: NSHTTPURLResponse?, data: NSData?,
 internal class CancellableWrapper: Cancellable {
     internal var innerCancellable: Cancellable = SimpleCancellable()
 
-    var canceled: Bool { return innerCancellable.canceled ?? false }
+    var cancelled: Bool { return innerCancellable.cancelled ?? false }
 
     internal func cancel() {
         innerCancellable.cancel()
@@ -517,8 +517,8 @@ internal class CancellableWrapper: Cancellable {
 }
 
 internal class SimpleCancellable: Cancellable {
-    var canceled = false
+    var cancelled = false
     func cancel() {
-        canceled = true
+        cancelled = true
     }
 }
